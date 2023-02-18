@@ -9,13 +9,28 @@ public class PlayerMovement : MonoBehaviour
 
     public float groundDrag;
 
+    [Header("Jumping")]
     public float jumpForce;
     public float jumpCooldown;
     public float airMultiplier;
     private bool readyToJump = true;
 
+    [Header("Crouching")]
+    public float crouchSpeed;
+    public float crouchYScale;
+    private float startYScale;
+
+    [Header("Sliding")]
+    public float slideYScale;
+    private bool isSliding;
+    private float slideTimer;
+    public float maxSlideTime;
+    public float slideForce; 
+
+
     [Header("Keybinds")]
     public KeyCode jumpKey = KeyCode.Space; 
+    public KeyCode slideKey = KeyCode.LeftShift; 
 
 
     [Header("Ground check")]
@@ -35,13 +50,17 @@ public class PlayerMovement : MonoBehaviour
     public enum MovementState
     {
         WALKING,
+        CROUCHING,
+        SLIDING,
         AIR
     }
 
     private void Start()
     {
         rigibody = GetComponent<Rigidbody>();
-        rigibody.freezeRotation = true; 
+        rigibody.freezeRotation = true;
+
+        startYScale = transform.localScale.y; 
     }
 
     private void Update()
@@ -66,15 +85,21 @@ public class PlayerMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
-        MovePlayer(); 
+        MovePlayer();
+
+        if (isSliding)
+        {
+            SlideMovement(); 
+        }
     }
 
     private void GetInput()
     {
+        //Movement inputs
         horizontalInput = Input.GetAxisRaw("Horizontal");
         verticalInput = Input.GetAxisRaw("Vertical");
 
-
+        //Jump Input
         if(Input.GetKey(jumpKey) && readyToJump && isGrounded)
         {
           
@@ -83,18 +108,37 @@ public class PlayerMovement : MonoBehaviour
 
             Invoke(nameof(ResetJump), jumpCooldown); 
         }
+
+        //Crouch Input
+        if (Input.GetKeyDown(slideKey) && (horizontalInput != 0 || verticalInput != 0))
+        {
+            StartSlide(); 
+        }
+
+        if (Input.GetKeyUp(slideKey) && isSliding)
+        {
+            StopSlide(); 
+        }
+
     }
 
     private void StateHandler()
     {
-        if (isGrounded)
+        if (isSliding)
+        {
+            currentState = MovementState.SLIDING;
+        }
+        //WALKING
+        else if (isGrounded)
         {
             currentState = MovementState.WALKING;
         }
+        //AIR
         else
         {
             currentState = MovementState.AIR; 
         }
+
     }
 
     private void MovePlayer()
@@ -137,5 +181,33 @@ public class PlayerMovement : MonoBehaviour
         readyToJump = true; 
     }
 
+    private void StartSlide()
+    {
+        isSliding = true; 
 
+        transform.localScale = new Vector3(transform.localScale.x, slideYScale, transform.localScale.z);
+        rigibody.AddForce(Vector3.down * 5f, ForceMode.Impulse);
+
+        slideTimer = maxSlideTime; 
+    }
+
+    private void SlideMovement()
+    {
+        Vector3 slideDir = orientation.forward * verticalInput + orientation.right * horizontalInput;
+        rigibody.AddForce(slideDir.normalized * slideForce, ForceMode.Force);
+
+        slideTimer -= Time.deltaTime;
+
+        if(slideTimer <= 0)
+        {
+            StopSlide(); 
+        }
+
+    }
+
+    private void StopSlide()
+    {
+        isSliding = false;
+        transform.localScale = new Vector3(transform.localScale.x, startYScale, transform.localScale.z);
+    }
 }
